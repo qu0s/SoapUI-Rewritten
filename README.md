@@ -59,7 +59,7 @@ The default RCC connection is `127.0.0.1:64989` with base URL `roblox.com`. RBXG
 
 ## Project notes
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the code layout and request flow. Protocol references include the [RCCService WSDL](https://finobe.lol/Resources/RCCService.wsdl), [SOAP envelope example](https://en.wikipedia.org/wiki/SOAP#Specification), and [RCCService Information](https://docs.mercs.dev/services/rcc/) and [RBXGS Information](https://uboomblox.miraheze.org/wiki/RBXGS) background docs.
+See the [documentation index](docs/README.md) for the architecture, request flow, protocols, data formats, and development guides. Protocol references include the [RCCService WSDL](https://finobe.lol/Resources/RCCService.wsdl), [SOAP envelope example](https://en.wikipedia.org/wiki/SOAP#Specification), and [RCCService Information](https://docs.mercs.dev/services/rcc/) and [RBXGS Information](https://uboomblox.miraheze.org/wiki/RBXGS) background docs.
 
 Issues and pull requests are welcome. When changing SOAP behavior, include the RCC/RBXGS build tested and redact any sample request or response data.
 

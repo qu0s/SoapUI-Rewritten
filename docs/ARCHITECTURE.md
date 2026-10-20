@@ -1,60 +1,66 @@
 # Architecture
 
-## Layering
+SoapUI is a Windows Forms client for RCC and RBXGS SOAP services. Its main boundaries separate UI state, protocol-specific service clients, SOAP construction, HTTP transport, response parsing, file formats, and domain models.
 
+## At a glance
+
+| Concern | Implementation |
+|---|---|
+| Application | Windows Forms, .NET Framework 4.7.2, C# 7.3 |
+| Entry point | `Program.Main()` starts `UI.MainUI` |
+| Service modes | RCC and legacy RBXGS |
+| Transport | Synchronous HTTP `POST` using `HttpWebRequest` |
+| Payload | SOAP 1.1 XML encoded as UTF-8 |
+| Default RCC target | `http://127.0.0.1:64989`, base URL `roblox.com` |
+| Release executable | Optimized `SoapUI.exe`; Newtonsoft.Json is embedded |
+
+The Release executable still requires the .NET Framework 4.7.2 runtime. Embedding Newtonsoft.Json removes its sidecar DLL; it does not bundle the framework runtime.[^1]
+
+## System map
+
+```mermaid
+flowchart LR
+    User[User] --> UI[WinForms UI<br/>MainUI]
+    UI --> Models[Endpoint, Job, Script,<br/>LuaArgument]
+    UI --> Mode{Selected mode}
+    Mode --> RCC[RccServiceClient]
+    Mode --> RBXGS[RbxgsServiceClient]
+    RCC --> Builder[SoapEnvelopeBuilder]
+    RBXGS --> Builder
+    RCC --> Transport[SoapTransport]
+    RBXGS --> Transport
+    Builder --> Transport
+    Transport -->|HTTP POST| Service[(RCC or RBXGS service)]
+    Service -->|SOAP XML| Transport
+    Transport --> Parser[SoapResponseParser]
+    Parser --> Outcome[ResponseOutcome]
+    Outcome --> UI
+    UI --> Presentation[Log window and<br/>optional dialog]
+    FileIO[ArgumentFileStore] <--> Models
 ```
-UI  ->  Services  ->  Models / Common
-```
 
-- **UI (`UI/MainUI.cs`)** — WinForms only. Reads text boxes, builds `ServiceEndpoint` /
-  `Job` / `Script` objects, calls one client method, renders the returned
-  `ResponseOutcome` (log lines + optional dialog). No XML templating here.
-- **Services/Soap** — `RccServiceClient` and `RbxgsServiceClient` own the typed
-  action sets. `SoapEnvelopeBuilder` owns every angle bracket. `SoapTransport`
-  owns HTTP (headers, URL selection, timeout) and maps `WebException` to a
-  `SoapTransportException` carrying the server's response body. No `MessageBox`
-  below this layer.
-- **Services/Parsing** — `SoapResponseParser` turns raw XML into a
-  `ResponseOutcome`. Namespace-agnostic (`Name.LocalName`) because RCC and
-  RBXGS use different namespaces for the same concepts.
-- **Services/IO** — `ArgumentFileStore` owns the JSON shape of exported
-  arguments (`[{ "type", "value" }]`).
-- **Models** — immutable-ish domain objects with constructor validation
-  (`Job`, `Script`, `LuaArgument`, `ServiceEndpoint`, `ServiceMode`,
-  `Responses/*`, `Hosting/*`).
-- **Common** — `Guard`, `XmlHelper` (escaping done once, correctly:
-  `&` first via `SecurityElement.Escape`), `UnixTime`, `AppConstants`.
+The builder creates both shared payload fragments and the outer mode-specific envelope. Clients choose action bodies; the transport owns the HTTP request and returns raw XML.
 
-## Request flow
+## Layer boundaries
 
-```
-[Form inputs] -> ServiceEndpoint + Job + Script
-              -> RccServiceClient.Execute() / RbxgsServiceClient.Execute()
-              -> SoapEnvelopeBuilder fragment -> SoapTransport.Send()
-              -> raw XML -> SoapResponseParser.Parse()
-              -> ResponseOutcome -> log window / MessageBox
-```
+| Layer | Main files | Responsibility |
+|---|---|---|
+| Presentation | `UI/MainUI.cs`, `UI/MainUI.Designer.cs` | Read and validate input, create models, dispatch actions, render logs and dialogs |
+| Service clients | `Services/Soap/RccServiceClient.cs`, `Services/Soap/RbxgsServiceClient.cs` | Expose typed action methods and construct action-specific body elements |
+| SOAP construction | `Services/Soap/SoapEnvelopeBuilder.cs` | Build envelopes and reusable job, script, and Lua argument fragments |
+| HTTP transport | `Services/Soap/SoapTransport.cs` | Select URL, set headers and timeout, POST XML, map transport failures |
+| Response parsing | `Services/Parsing/SoapResponseParser.cs` | Convert action-specific response XML into `ResponseOutcome` |
+| File I/O | `Services/IO/ArgumentFileStore.cs` | Import and export script arguments |
+| Domain models | `Models/` | Represent endpoints, service mode, jobs, scripts, arguments, status, and results |
+| Shared utilities | `Common/` | Defaults, precondition checks, XML helpers, and time conversion |
 
-## Key decisions
+The UI acts as the request composition root: it creates the endpoint and request models, selects the client, and later invokes the parser. Lower layers return values or exceptions; they do not show WinForms dialogs.
 
-- **One transport, two clients.** RCC and RBXGS differ in envelope + URL, not
-  in HTTP mechanics, so they share `SoapTransport` and diverge in builders.
-- **Exceptions, not dialogs, from services.** `SoapTransportException` carries
-  `Action` + `ResponseBody`; the form decides how to display it. This keeps
-  services unit-testable without a message loop.
-- **Single `LuaArgument` model.** The legacy tree had three overlapping types
-  (`LuaValue`, `LuaValueNew`, `JSONArgument`). One serialisable type covers
-  grid rows, JSON files, and envelope fragments.
-- **No `dynamic` in new code.** Legacy parsing used `dynamic` everywhere;
-  the parser now uses typed locals and safe `ChildValue` lookups.
-- **C# 7.3 ceiling.** The legacy (non-SDK) project format builds cleanly on
-  older toolsets when the language version stays pinned.
+## Further reading
 
-## What would come next
+- [Request lifecycle and error handling](REQUEST-FLOW.md)
+- [RCC and RBXGS protocol details](PROTOCOLS.md)
+- [Domain models and argument files](DATA-FORMATS.md)
+- [Build, packaging, and contributor guidance](DEVELOPMENT.md)
 
-- Async execution (`async`/`await` + cancellation) so long calls don't freeze
-  the form (currently the form disables itself synchronously).
-- `HttpClient` + DI instead of `new`-ing clients per click.
-- Unit tests around `SoapEnvelopeBuilder` (escaping!) and
-  `SoapResponseParser` with recorded XML fixtures.
-- SDK-style project + `PackageReference` (drops `packages.config`).
+[^1]: The Release configuration embeds Newtonsoft.Json specifically. Framework assemblies are supplied by the installed .NET Framework runtime.
