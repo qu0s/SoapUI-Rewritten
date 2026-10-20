@@ -1,147 +1,68 @@
 # SoapUI
 
-WinForms client for driving Roblox RCC / RBXGS SOAP services: open jobs, execute Lua, inspect environments, and review stdout - without hand-crafting XML envelopes.
+SoapUI is a Winows Forms client for RCCService and RBXGS SOAP services. Configure a service endpoint, choose an action, run Lua scripts, and inspect the response without building SOAP envelopes by hand.
+
+![SoapUI interface](docs/soapui.png)
 
 ## Features
 
-- **RCC support** - `HelloWorld`, `GetVersion`, `GetStatus`, `OpenJob(Ex)`, `RenewLease`, `Execute(Ex)`, `CloseJob`, `Diag(Ex)`, `GetAllJobs(Ex)`, `CloseExpiredJobs`, `CloseAllJobs`, `BatchJob(Ex)`.
-- **RBXGS support** - `HelloWorld`, `GetVersion`, `GetStatus`, `Execute`, `GetStandardOutMessages`, `GetAllEnvironments`, `OpenEnvironment`, `CloseEnvironment(s)`, `Update`.
-- **Script arguments** - add typed `LUA_T*` arguments per call; import/export them as JSON (XML files accepted on import).
-- **Script loading** - load `.lua` / `.txt` files directly into the editor panes.
-- **Log window** - structured per-call output (return counts, typed values, timestamps).
+- Call RCC and RBXGS service actions, including job and environment management.
+- Execute Lua scripts and add typed `LUA_T*` arguments.
+- Import and export arguments as JSON; XML files are also supported for import.
+- Load `.lua` and `.txt` scripts into the editor.
+- Review structured results and service output in the log window.
 
-## Protocol reference
+## Requirements
 
-Implementation is checked against the real `RCCService.wsdl`
-(`targetNamespace="http://roblox.com/"`, document/literal, `127.0.0.1:64989`)
-and a proven PHP envelope for 2008-era RCC:
+- Windows 10 or 11
+- Visual Studio 2019 or 2022 with the .NET desktop workload
+- .NET Framework 4.7.2 targeting pack
+- NuGet package restore (`Newtonsoft.Json` 13.0.4)
 
-- WSDL: `https://finobe.lol/Resources/RCCService.wsdl`
-- Envelope reference: `https://github.com/1cal0/RCCSoap08`
-- Background: `https://docs.mercs.dev/services/rcc/`,
-  `https://uboomblox.miraheze.org/wiki/RBXGS`
+## Build and run
 
-Known gaps (help welcome): `GetExpiration` has no client/UI yet, RCC
-`LuaValue[]` results currently render as "Success!" instead of typed log
-lines, and response values are not entity-decoded on the way back.
-
-## Prerequisites
-
-| Requirement | Version |
-|---|---|
-| Windows | 10 / 11 |
-| Visual Studio | 2022 (or 2019) with .NET desktop workload |
-| .NET Framework targeting pack | 4.7.2 |
-| NuGet | Package Restore enabled (Newtonsoft.Json 13.0.3) |
-
-## Getting started
+Clone the repository, restore packages, then build from a Visual Studio Developer PowerShell:
 
 ```powershell
-# Clone
-git clone https://github.com/p0s0/SoapUI.git
-cd SoapUI
-
-# Restore + build (VS Developer PowerShell)
+git clone https://github.com/qu0s/SoapUI-Rewritten.git
+cd SoapUI-Rewritten
+nuget restore SoapUI.sln
 msbuild SoapUI.sln /p:Configuration=Debug
-# or open SoapUI.sln in Visual Studio and press F5
 ```
 
-The binary lands in `bin\Debug\SoapUI.exe`.
+Or open `SoapUI.sln` in Visual Studio, allow NuGet package restore, and press **F5**. The executable is created at `bin\Debug\SoapUI.exe`.
 
-## Usage
+## Use the app
 
-1. Launch the app.
-2. Fill in **IP** (and **Port** / **Base URL** for RCC).
-3. Pick a **SOAP Action**.
-4. Fill in the action-specific panel (job id, script, diag type, …).
-5. Optionally add script arguments with **+** (import with **F**, export with **S**).
-6. Press **Execute** - results appear in the log window and/or a dialog.
-7. Tick **RBXGS Mode** to switch the action list to the legacy `urn:Roblox` endpoint
-   (`http://<ip>/RBXGS/WebService.dll`).
+1. Start SoapUI and set the service IP address. For RCC, set the port and base URL as needed.
+2. Select a SOAP action and fill in its fields, such as a job ID or script.
+3. Add any script arguments, then choose **Execute Action**.
+4. Read the response in the log window or result dialog.
+5. Select **RBXGS Mode** to use the legacy RBXGS endpoint.
 
-Default connection: `127.0.0.1:64989`, base URL `roblox.com`.
+The default RCC connection is `127.0.0.1:64989` with base URL `roblox.com`. RBXGS uses `http://<ip>/RBXGS/WebService.dll`.
 
-## Project structure
+## Supported actions
 
-```
-SoapUI.sln / SoapUI.csproj
-Program.cs                  # WinForms entry point (no logic)
-App.config
-UI/
-  MainUI.cs                 # Thin orchestrator: inputs -> clients -> outcomes
-  MainUI.Designer.cs/.resx  # WinForms designer (do not hand-edit)
-Models/
-  Job.cs / Script.cs        # RCC job + script descriptors
-  LuaArgument.cs            # Single { type, value } script argument
-  LuaType.cs                # LUA_T* constants + CLR mapping
-  ServiceEndpoint.cs        # ip/port/baseUrl/mode value object
-  ServiceMode.cs            # Rcc | Rbxgs
-  Responses/                # ServiceStatus, ResponseOutcome
-  Hosting/                  # Local process tracking (service / game server)
-Services/
-  Soap/
-    SoapTransport.cs        # HTTP POST + error mapping (no UI)
-    SoapEnvelopeBuilder.cs  # Envelope + job/script XML fragments
-    RccServiceClient.cs     # Typed RCC action set
-    RbxgsServiceClient.cs   # Typed RBXGS action set
-  Parsing/
-    SoapResponseParser.cs   # XML -> ResponseOutcome (no UI)
-  IO/
-    ArgumentFileStore.cs    # JSON import/export of arguments (XML import supported)
-Common/
-  AppConstants.cs           # Defaults, action lists, repo URL
-  Guard.cs                  # Precondition helpers
-  XmlHelper.cs              # Escaping + namespace-agnostic lookup
-  UnixTime.cs               # Epoch <-> DateTime
-Properties/                 # AssemblyInfo, Resources, Settings
-docs/
-  ARCHITECTURE.md           # Layering + request flow
-```
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layering rationale.
-
-## SOAP coverage
-
-### RCC (`http://<ip>:<port>`)
-
-| Action | Notes |
+| Service | Actions |
 |---|---|
-| HelloWorld / GetVersion / GetStatus | Status is parsed into version + environment count |
-| OpenJob / OpenJobEx | Job + script payload |
-| RenewLease | `jobID` + `expirationInSeconds` |
-| Execute / ExecuteEx | `jobID` + script payload |
-| CloseJob | `jobID` |
-| Diag / DiagEx | `type` + `jobID` |
-| GetAllJobs / GetAllJobsEx | No parameters |
-| CloseExpiredJobs / CloseAllJobs | Returns jobs-closed count |
-| BatchJob / BatchJobEx | Client support; no dedicated UI panel |
+| RCC | `HelloWorld`, `GetVersion`, `GetStatus`, `OpenJob(Ex)`, `RenewLease`, `Execute(Ex)`, `CloseJob`, `Diag(Ex)`, `GetAllJobs(Ex)`, `CloseExpiredJobs`, `CloseAllJobs`, `BatchJob(Ex)` |
+| RBXGS | `HelloWorld`, `GetVersion`, `GetStatus`, `Execute`, `GetStandardOutMessages`, `GetAllEnvironments`, `OpenEnvironment`, `CloseEnvironment(s)`, `Update` |
 
-### RBXGS (`http://<ip>/RBXGS/WebService.dll`)
+`BatchJob(Ex)` is supported by the RCC client but does not have a dedicated UI panel.
 
-| Action | Notes |
-|---|---|
-| HelloWorld / GetVersion / GetStatus | Legacy `roblox:` envelope |
-| Execute | Environment + script + typed arguments |
-| GetStandardOutMessages | Last 30 messages with level prefixes + local timestamps |
-| GetAllEnvironments / OpenEnvironment / CloseEnvironment(s) | Environment lifecycle |
-| Update | Update-URL push |
+## Known limitations
 
-## Development
+- `GetExpiration` is not yet available in the client UI.
+- RCC `LuaValue[]` results currently display as “Success!” rather than typed log entries.
+- Response values are not entity-decoded after parsing.
 
-- Keep `UI/` free of XML string building - that belongs in `Services/Soap/`.
-- Keep `Services/` free of `MessageBox` - return data, let the form present it.
-- Models are immutable where practical; validation lives in constructors via `Guard`.
-- C# language version is pinned to **7.3** (see `SoapUI.csproj`) to stay compatible with the legacy project system.
-- Formatting follows [.editorconfig](.editorconfig) (4 spaces, CRLF, braces always).
+## Project notes
 
-## Contributing
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the code layout and request flow. Protocol references include the [RCCService WSDL](https://finobe.lol/Resources/RCCService.wsdl), [SOAP envelope example](https://en.wikipedia.org/wiki/SOAP#Specification), and [RCCService Information](https://docs.mercs.dev/services/rcc/) and [RBXGS Information](https://uboomblox.miraheze.org/wiki/RBXGS) background docs.
 
-Issues and PRs are welcome. Please:
-
-1. Describe the RCC/RBXGS build you tested against.
-2. Include a sample request/response (redacted) when touching SOAP code.
-3. Keep UI, Services, and Models changes in separate commits where possible.
+Issues and pull requests are welcome. When changing SOAP behavior, include the RCC/RBXGS build tested and redact any sample request or response data.
 
 ## License
 
-GNU Lesser General Public License v2.1 is used for this repository.
+Licensed under the [GNU Lesser General Public License v2.1](LICENSE).
