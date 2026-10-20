@@ -1,6 +1,6 @@
 # SoapUI
 
-SoapUI is a Winows Forms client for RCCService and RBXGS SOAP services. Configure a service endpoint, choose an action, run Lua scripts, and inspect the response without building SOAP envelopes by hand.
+SoapUI is a Windows Forms client for RCCService and RBXGS SOAP services. Configure a service endpoint, choose an action, run Lua scripts, and inspect the response without building SOAP envelopes by hand.
 
 ![SoapUI interface](docs/soapui.png)
 
